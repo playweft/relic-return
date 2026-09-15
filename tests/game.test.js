@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGame,step,observe} from '../src/game.js';
+const run=(s,a,n=1)=>{for(let i=0;i<n;i++)step(s,a);};
+function go(s,x,z){let safety=3000;while(Math.hypot(s.p.x-x,s.p.z-z)>.1&&safety-->0){const dx=x-s.p.x,dz=z-s.p.z,d=Math.hypot(dx,dz);step(s,{moveX:dx/d,moveY:-dz/d});}assert.ok(safety>0,'destination reachable');}
+function interact(s){step(s,{});step(s,{interact:true});}
+test('full mission through actual movement, key, gate, combat, core and return',()=>{const s=createGame(1);go(s,0,-20);go(s,-23,-20);go(s,-23,-23);interact(s);assert.equal(s.key,true);go(s,-20,-20);go(s,0,-20);go(s,0,-28);interact(s);assert.equal(s.door,true);assert.equal(s.key,false);go(s,0,-37);for(let i=0;i<3;i++){run(s,{attack:true});run(s,{},30);}assert.equal(s.enemy.hp,0);go(s,0,-44);interact(s);assert.equal(s.core,true);go(s,0,3);interact(s);assert.equal(s.status,'won');assert.equal(observe(s).inventory,'core');});
+test('locked gate blocks motion and keyless interaction',()=>{const s=createGame();go(s,0,-28);interact(s);run(s,{moveY:1},80);assert.ok(s.p.z>=-29);assert.equal(s.door,false);});
+test('damage sources, jump and dodge windows',()=>{let s=createGame(2);s.p.z=-24;s.time=.5;step(s);assert.equal(s.damage.trap,20);s=createGame(2);s.p.z=-24;s.time=.5;step(s,{dodge:true});assert.equal(s.damage.trap,0);s=createGame(2);run(s,{jump:true},15);assert.ok(s.p.y>.75);s.p.z=-24;s.time=.5;step(s);assert.equal(s.damage.trap,0);s=createGame();s.p.x=100;step(s);assert.equal(s.damage.fall,25);assert.equal(s.p.x,0);});
+test('terminal state freezes and snapshots cannot mutate simulation',()=>{const s=createGame();s.time=299.99;step(s);assert.equal(s.status,'lost');const t=s.time;step(s,{moveY:1});assert.equal(s.time,t);const o=observe(s);o.player.hp=0;assert.equal(s.p.hp,100);});
+test('one press cannot repeat attacks; same action sequence is deterministic',()=>{const a=createGame(),b=createGame();for(let i=0;i<150;i++){const action={moveY:i<50?1:0,jump:i===12,lookX:.001};step(a,action);step(b,action);}assert.deepEqual(observe(a),observe(b));const s=createGame();s.p.z=-37;s.p.angle=Math.PI;s.door=true;run(s,{attack:true},90);assert.equal(s.enemy.hp,2);});
